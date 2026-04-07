@@ -111,8 +111,8 @@ const JobChatWindow = () => {
             console.log('📨 Chat history response:', msgRes.data);
             console.log(`📊 Received ${msgRes.data.messages?.length} messages`);
             setMessages(msgRes.data.messages || []); 
-          } catch (historyErr) {
-            console.log('No chat history yet:', historyErr.message);
+          } catch (error) {
+            console.log('No chat history yet:', error.message);
             setMessages([]);
           }
         } else if (conv.isTemporary) {
@@ -155,14 +155,14 @@ const JobChatWindow = () => {
         }
 
         setError(null);
-      } catch (err) {
-        console.error('❌ Error initializing chat:', err);
-        console.error('   Request URL:', err.config?.url);
-        console.error('   Status Code:', err.response?.status);
-        console.error('   Response Data:', err.response?.data);
+      } catch (error) {
+        console.error('❌ Error initializing chat:', error);
+        console.error('   Request URL:', error.config?.url);
+        console.error('   Status Code:', error.response?.status);
+        console.error('   Response Data:', error.response?.data);
         console.error('   User Role:', user?.role);
         console.error('   Has Token:', !!token);
-        setError(err.response?.data?.msg || t('jobChatWindow.failedToLoadChat'));
+        setError(error.response?.data?.msg || t('jobChatWindow.failedToLoadChat'));
       } finally {
         setLoading(false);
       }
@@ -262,10 +262,10 @@ const JobChatWindow = () => {
       setInquirySent(false);
     }, 5000);
   }
-} catch (err) {
+} catch (error) {
   // Conversation IDs can become stale after backend-side regeneration.
   // Retry once by re-fetching the canonical conversation and resending.
-  if (err.response?.status === 404) {
+  if (error.response?.status === 404) {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       let refreshConversationUrl = `${API_BASE}/chat/conversation/${jobId}`;
@@ -297,16 +297,16 @@ const JobChatWindow = () => {
           return;
         }
       }
-    } catch (retryErr) {
-      console.error('Retry after 404 failed:', retryErr);
+    } catch (error) {
+      console.error('Retry after 404 failed:', error);
     }
   }
 
-  console.error('Error sending message:', err);
-  const errorMsg = err.response?.data?.msg || err.message || t('jobChatWindow.failedToSend');
+  console.error('Error sending message:', error);
+  const errorMsg = error.response?.data?.msg || error.message || t('jobChatWindow.failedToSend');
   setError(errorMsg);
   // If auth error, redirect to login
-        if (err.response?.status === 401 && user) {
+        if (error.response?.status === 401 && user) {
           navigate('/login');
         }
       } finally {
