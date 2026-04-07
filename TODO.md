@@ -1,8 +1,11 @@
-# GitHub Push Progress - RojgarSathi
+# JobChatWindow.jsx ESLint Fix TODO
 
-- [ ] 1. Create root .gitignore
-- [ ] 2. git init
-- [ ] 3. git add .
-- [ ] 4. git commit -m "Initial commit"
-- [ ] 5. gh repo create rojgarsathi --public --push
-- [ ] 6. Verify repo
+## Plan Steps:
+- [x] Step 1: Edit JobChatWindow.jsx - Hoist createMessagePayload function and msgContent definition to fix scope issues
+
+- [ ] Step 2: Verify ESLint errors resolved (npm run lint in frontend/)
+- [ ] Step 3: Test authenticated message send (socket path)
+- [ ] Step 4: Test anonymous message send (API + modal)
+- [ ] Step 5: Test retry logic (simulate 404 stale conversation)
+- [ ] Step 6: Complete task
+
