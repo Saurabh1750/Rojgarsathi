@@ -40,8 +40,6 @@ const ChatWindow = ({ jobId, conversationId, onClose }) => {
     fetchChatHistory,
     markAsRead,
     unblockUser,
-    error,
-    setError = () => {},
   } = useChat();
 
   const [loading, setLoading] = useState(false);
@@ -52,6 +50,7 @@ const ChatWindow = ({ jobId, conversationId, onClose }) => {
   const [showSearch, setShowSearch] = useState(false);
   const [isUserBlocked, setIsUserBlocked] = useState(false);
   const [filteredMessages, setFilteredMessages] = useState([]);
+  const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
   const containerRef = useRef(null);
   const isInitialLoad = useRef(true);
@@ -160,8 +159,9 @@ const ChatWindow = ({ jobId, conversationId, onClose }) => {
       if (conversationId) {
         leaveRoom(conversationId);
       }
+      setError(null);
     };
-  }, [conversationId, jobId, fetchChatHistory, markAsRead, apiBase]);
+  }, [conversationId, jobId, fetchChatHistory, markAsRead, apiBase, setError]);
 
   // Set other user information
   useEffect(() => {
@@ -289,7 +289,7 @@ const ChatWindow = ({ jobId, conversationId, onClose }) => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]); // Fixed exhaustive-deps
+  }, [messages, scrollToBottom]);
 
   const handleSendMessage = async (data) => {
     const { message, content, type, attachments = [] } = data;
@@ -339,9 +339,9 @@ const ChatWindow = ({ jobId, conversationId, onClose }) => {
       }
       
       console.log('[ChatWindow] ✅ Message sent successfully');
-    } catch (err) {
-      console.error('[ChatWindow] ❌ Error sending message:', err);
-      setError(err.message || t('chatWindow.sendFailed'));
+} catch (error) {
+      console.error('[ChatWindow] ❌ Error sending message:', error);
+      setError(error.message || t('chatWindow.sendFailed'));
     } finally {
       setLoading(false);
     }
