@@ -202,6 +202,21 @@ const JobChatWindow = () => {
         return;
       }
 
+      // Hoist payload helper for scope (fixes ESLint + retry access)
+      const createMessagePayload = (msgContent, contactInfo = null) => {
+        const payload = {
+          message: msgContent || '',
+          jobId,
+        };
+        if (!user && contactInfo) {
+          payload.senderName = contactInfo.name;
+          payload.senderEmail = contactInfo.email;
+        }
+        return payload;
+      };
+
+      const msgContent = inputText.trim();
+
       try {
         setSending(true);
 
@@ -214,7 +229,7 @@ const JobChatWindow = () => {
           socket.current.emit('sendMessage', {
             conversationId,
             jobId,
-            message: inputText.trim(),
+            message: msgContent,
           });
 
           setInputText('');
@@ -223,82 +238,74 @@ const JobChatWindow = () => {
           return;
         }
 
-        const messageData = {
-          message: inputText.trim(),
-          jobId,
-        };
-
-        // Add contact info if anonymous
-        if (!user && contactInfo) {
-          messageData.senderName = contactInfo.name;
-          messageData.senderEmail = contactInfo.email;
-        }
+        const messagePayload = createMessagePayload(msgContent, contactInfo);
 
         // Send via API with authentication (if available)
         const response = await axios.post(
           `${API_BASE}/chat/message/${conversationId}`,
-          messageData,
-          { 
-            headers: token ? { Authorization: `Bearer ${token}` } : {}
-          }
+          messagePayload,
+    { 
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    }
+  );
+
+  console.log('✅ sendMessage API response:', response.data);
+
+  // Handle response
+  if (!user && response.data.contact) {
+    // Anonymous user - Contact was created
+    setInquirySent(true);
+    setInputText('');
+    setShowContactModal(false);
+    setError(null);
+    setTimeout(() => {
+      setInquirySent(false);
+    }, 5000);
+  }
+} catch (err) {
+  // Conversation IDs can become stale after backend-side regeneration.
+  // Retry once by re-fetching the canonical conversation and resending.
+  if (err.response?.status === 404) {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      let refreshConversationUrl = `${API_BASE}/chat/conversation/${jobId}`;
+      if (user?.role === 'employer') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const workerId = urlParams.get('workerId');
+        if (workerId) {
+          refreshConversationUrl += `?workerId=${workerId}`;
+        }
+      }
+
+      const refreshConvRes = await axios.get(refreshConversationUrl, { headers });
+      const refreshedConversation = refreshConvRes.data?.conversation;
+      const refreshedConversationId = refreshedConversation?.conversationId || refreshedConversation?._id;
+
+      if (refreshedConversationId && !refreshedConversation?.isTemporary) {
+        setConversationId(refreshedConversationId);
+        const retryPayload = createMessagePayload(msgContent);
+        const retryResponse = await axios.post(
+          `${API_BASE}/chat/message/${refreshedConversationId}`,
+          retryPayload,
+          { headers }
         );
 
-        console.log('✅ sendMessage API response:', response.data);
-
-        // Handle response
-        if (!user && response.data.contact) {
-          // Anonymous user - Contact was created
-          setInquirySent(true);
+        if (retryResponse.data.message) {
+          setMessages((prev) => [...prev, retryResponse.data.message]);
           setInputText('');
-          setShowContactModal(false);
           setError(null);
-          setTimeout(() => {
-            setInquirySent(false);
-          }, 5000);
+          return;
         }
-      } catch (err) {
-        // Conversation IDs can become stale after backend-side regeneration.
-        // Retry once by re-fetching the canonical conversation and resending.
-        if (err.response?.status === 404) {
-          try {
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            let refreshConversationUrl = `${API_BASE}/chat/conversation/${jobId}`;
-            if (user?.role === 'employer') {
-              const urlParams = new URLSearchParams(window.location.search);
-              const workerId = urlParams.get('workerId');
-              if (workerId) {
-                refreshConversationUrl += `?workerId=${workerId}`;
-              }
-            }
+      }
+    } catch (retryErr) {
+      console.error('Retry after 404 failed:', retryErr);
+    }
+  }
 
-            const refreshConvRes = await axios.get(refreshConversationUrl, { headers });
-            const refreshedConversation = refreshConvRes.data?.conversation;
-            const refreshedConversationId = refreshedConversation?.conversationId || refreshedConversation?._id;
-
-            if (refreshedConversationId && !refreshedConversation?.isTemporary) {
-              setConversationId(refreshedConversationId);
-              const retryResponse = await axios.post(
-                `${API_BASE}/chat/message/${refreshedConversationId}`,
-                messageData,
-                { headers }
-              );
-
-              if (retryResponse.data.message) {
-                setMessages((prev) => [...prev, retryResponse.data.message]);
-                setInputText('');
-                setError(null);
-                return;
-              }
-            }
-          } catch (retryErr) {
-            console.error('Retry after 404 failed:', retryErr);
-          }
-        }
-
-        console.error('Error sending message:', err);
-        const errorMsg = err.response?.data?.msg || err.message || t('jobChatWindow.failedToSend');
-        setError(errorMsg);
-        // If auth error, redirect to login
+  console.error('Error sending message:', err);
+  const errorMsg = err.response?.data?.msg || err.message || t('jobChatWindow.failedToSend');
+  setError(errorMsg);
+  // If auth error, redirect to login
         if (err.response?.status === 401 && user) {
           navigate('/login');
         }
